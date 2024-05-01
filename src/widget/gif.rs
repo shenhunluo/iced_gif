@@ -11,6 +11,7 @@ use iced_widget::core::{
     event, layout, renderer, window, Clipboard, ContentFit, Element, Event, Layout, Length,
     Rectangle, Shell, Size, Vector, Widget,
 };
+use iced_widget::image::FilterMethod;
 use iced_widget::runtime::Command;
 use image_rs::codecs::gif;
 use image_rs::{AnimationDecoder, ImageDecoder};
@@ -148,6 +149,7 @@ pub struct Gif<'a> {
     width: Length,
     height: Length,
     content_fit: ContentFit,
+    filter_method: FilterMethod,
 }
 
 impl<'a> Gif<'a> {
@@ -158,6 +160,7 @@ impl<'a> Gif<'a> {
             width: Length::Shrink,
             height: Length::Shrink,
             content_fit: ContentFit::Contain,
+            filter_method: FilterMethod::default(),
         }
     }
 
@@ -184,18 +187,10 @@ impl<'a> Gif<'a> {
     }
 }
 
-impl<'a, Message, Renderer> Widget<Message, Renderer> for Gif<'a>
+impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer> for Gif<'a>
 where
     Renderer: image::Renderer<Handle = Handle>,
 {
-    fn width(&self) -> Length {
-        self.width
-    }
-
-    fn height(&self) -> Length {
-        self.height
-    }
-
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<State>()
     }
@@ -225,17 +220,6 @@ where
         }
     }
 
-    fn layout(&self, renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
-        iced_widget::image::layout(
-            renderer,
-            limits,
-            &self.frames.first.handle,
-            self.width,
-            self.height,
-            self.content_fit,
-        )
-    }
-
     fn on_event(
         &mut self,
         tree: &mut Tree,
@@ -249,7 +233,7 @@ where
     ) -> event::Status {
         let state = tree.state.downcast_mut::<State>();
 
-        if let Event::Window(window::Event::RedrawRequested(now)) = event {
+        if let Event::Window(_id,window::Event::RedrawRequested(now)) = event {
             let elapsed = now.duration_since(state.current.started);
 
             if elapsed > state.current.frame.delay {
@@ -272,7 +256,7 @@ where
         &self,
         tree: &Tree,
         renderer: &mut Renderer,
-        _theme: &Renderer::Theme,
+        _theme: &Theme,
         _style: &renderer::Style,
         layout: Layout<'_>,
         _cursor: Cursor,
@@ -302,7 +286,7 @@ where
                     ..bounds
                 };
 
-                renderer.draw(state.current.frame.handle.clone(), drawing_bounds + offset)
+                renderer.draw(state.current.frame.handle.clone(), self.filter_method, drawing_bounds + offset)
             };
 
             if adjusted_fit.width > bounds.width || adjusted_fit.height > bounds.height {
@@ -312,13 +296,54 @@ where
             }
         }
     }
+    
+    fn size(&self) -> Size<Length> {
+        Size {
+            width: self.width,
+            height: self.height,
+        }
+    }
+    
+    fn children(&self) -> Vec<Tree> {
+        Vec::new()
+    }
+    
+    fn operate(
+        &self,
+        _state: &mut Tree,
+        _layout: Layout<'_>,
+        _renderer: &Renderer,
+        _operation: &mut dyn iced_widget::core::widget::Operation<Message>,
+    ) {
+    }
+    
+    fn mouse_interaction(
+        &self,
+        _state: &Tree,
+        _layout: Layout<'_>,
+        _cursor: iced_widget::core::mouse::Cursor,
+        _viewport: &Rectangle,
+        _renderer: &Renderer,
+    ) -> iced_widget::core::mouse::Interaction {
+        iced_widget::core::mouse::Interaction::Idle
+    }
+    
+    fn layout(
+        &self,
+        _tree: &mut Tree,
+        renderer: &Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
+        iced_widget::image::layout(renderer, limits, &self.frames.first.handle, self.width, self.height, self.content_fit)
+    }
+    
 }
 
-impl<'a, Message, Renderer> From<Gif<'a>> for Element<'a, Message, Renderer>
+impl<'a, Message, Theme, Renderer> From<Gif<'a>> for Element<'a, Message, Theme, Renderer>
 where
     Renderer: image::Renderer<Handle = Handle> + 'a,
 {
-    fn from(gif: Gif<'a>) -> Element<'a, Message, Renderer> {
+    fn from(gif: Gif<'a>) -> Element<'a, Message, Theme, Renderer> {
         Element::new(gif)
     }
 }
